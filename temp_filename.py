@@ -1,3 +1,4 @@
+"""Context that introduces a temporary file to extend tempfile"""
 import contextlib
 from pathlib import Path
 from typing import Generator, Optional

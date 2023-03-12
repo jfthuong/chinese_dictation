@@ -1,16 +1,15 @@
+"""Classes and functions to select characters to practice dictation"""
 import enum
 import random
 import re
 from dataclasses import dataclass
-from itertools import chain
 from random import choice
 from typing import Optional, Union
 
-
 import pyttsx3
 import streamlit as st
+from pypinyin import Style, lazy_pinyin
 from pyttsx3.voice import Voice
-from pypinyin import pinyin
 
 from temp_filename import temporary_filename
 
@@ -90,7 +89,7 @@ class Character:
     @property
     def pinyin(self) -> str:
         """Pinyin representation"""
-        return " ".join(chain.from_iterable(pinyin(self.chars)))
+        return " ".join(lazy_pinyin(self.chars, style=Style.TONE))
 
     @property
     def status(self) -> str:

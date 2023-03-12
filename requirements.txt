@@ -1,3 +1,4 @@
 pyttsx3
+# NOTE: pyttsx3 might need pypiwin32
 pypinyin
 streamlit
