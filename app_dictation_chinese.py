@@ -1,4 +1,8 @@
+import codecs
+import csv
+from datetime import datetime
 import logging
+from pathlib import Path
 
 import streamlit as st
 
@@ -64,10 +68,35 @@ with tab_practice:
         st.subheader(f"{word.pinyin}")
 
 
+def generate_report(csv_path: Path):
+    """Generate a report"""
+    need_header = not csv_path.exists()
+
+    # We need to add BOM for UTF-8 to be able to open in Excel
+    if need_header:
+        with csv_path.open("wb") as f:
+            f.write(codecs.BOM_UTF8)
+
+    with csv_path.open("a", newline="", encoding="utf-8") as f:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        writer = csv.writer(f, dialect="excel")
+
+        if need_header:
+            header = "Date Character Pinyin Status".split()
+            writer.writerow(header)
+
+        writer.writerows([now, c.chars, c.pinyin, c.status] for c in characters_done)
+
+    st.success(f"Report updated in {csv_path}")
+
+
 with tab_review:
     st.header("Review")
     if st.button("🧹Clear list of characters"):
-        characters_done.clear()
+        for word in characters_done:
+            st.write(f" * {word.chars} - {word.status}")
+        # characters_done.clear()
+        generate_report(Path("dictation_report.csv"))
 
     if characters_done:
         st.write(f"Caption for status: {Status.get_help()}")
@@ -75,13 +104,12 @@ with tab_review:
             col_w, col_p, col_s = st.columns(3)
             col_w.subheader(word.chars)
             col_p.write(word.pinyin)
-            status = col_s.radio(
+            word.status = col_s.radio(  # type: ignore  # None supported
                 "status",
                 Status.list_values(),
                 key=f"check_{i}",
                 horizontal=True,
                 label_visibility="collapsed",
             )
-            word.status = Status.from_string(status)
     else:
         st.header("No characters done yet")

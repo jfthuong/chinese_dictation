@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from itertools import chain
 from random import choice
-from typing import Optional
+from typing import Optional, Union
 
 
 import pyttsx3
@@ -19,21 +19,20 @@ class Status(enum.Enum):
     """Status of a dictation"""
 
     UNKNOWN = "❔"
-    UNANSWERED = "🈳"
+    MISSING = "🈳"
     INCORRECT = "❌"
     CORRECT = "✅"
 
     @classmethod
     def from_string(cls, value: Optional[str]) -> "Status":
         """Convert a string to a Status"""
-        if value == "❔" or value is None:
+        if value is None:
             return cls.UNKNOWN
-        if value == "🈳":
-            return cls.UNANSWERED
-        if value == "❌":
-            return cls.INCORRECT
-        if value == "✅":
-            return cls.CORRECT
+
+        for status in cls:
+            if status.value == value:
+                return status
+
         raise ValueError(f"Unknown status {value}")
 
     @classmethod
@@ -69,7 +68,7 @@ class Character:
     """A word with pinyin and translation"""
 
     chars: str
-    status: Optional[Status] = None
+    _status: Status = Status.UNKNOWN
 
     @st.cache_data
     def generate_mp3(self, voice_rate: int) -> bytes:
@@ -93,6 +92,15 @@ class Character:
         """Pinyin representation"""
         return " ".join(chain.from_iterable(pinyin(self.chars)))
 
+    @property
+    def status(self) -> str:
+        """Status of the character"""
+        return self._status.name
+
+    @status.setter
+    def status(self, value: Union[Status, str, None]):
+        self._status = value if isinstance(value, Status) else Status.from_string(value)
+
 
 @st.cache_data
 def next_character(char_list: set[str]) -> Character:
@@ -109,7 +117,7 @@ def split_characters(text: Optional[str]) -> set[str]:
     return {c.strip() for c in patt_sep.split(text) if c.strip()}
 
 
-def select_characters(shuffle:bool=True) -> set[str]:
+def select_characters(shuffle: bool = True) -> set[str]:
     """Select list of characters"""
     selection = st.sidebar.radio(
         "Selection mode", ["From File", "From List", "Few Characters"]
@@ -132,7 +140,6 @@ def select_characters(shuffle:bool=True) -> set[str]:
 
     else:
         raise RuntimeError(f"Unknown selection {selection}")
-
 
     characters = split_characters(list_characters)
     if characters and shuffle:
