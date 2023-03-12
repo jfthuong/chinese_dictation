@@ -31,33 +31,36 @@ if not list_characters:
 
 if "characters_done" not in st.session_state:
     st.session_state.characters_done = []
-characters_done = st.session_state.characters_done
 
 
-def record_characters(characters: Character):
+def record_characters(char: Character):
     """Add characters to the list of characters done"""
     if not st.session_state.characters_done:
-        st.session_state.characters_done = [characters]
-    elif characters.chars != st.session_state.characters_done[-1].chars:
-        st.session_state.characters_done.append(characters)
+        st.session_state.characters_done = [char]
+
+    elif char != st.session_state.characters_done[-1]:
+        st.session_state.characters_done.append(char)
 
 
 tab_practice, tab_review = st.tabs(["Practice", "Review"])
 
 with tab_practice:
     st.header("Dictation")
-    st.metric("Number of characters done", len(characters_done))
+    zone_metric = st.empty()
 
     rate = st.slider("Speed (words per minute)", 50, 200, ORIGINAL_RATE)
     word = next_character(list_characters)
-    record_characters(word)
 
     audio_zone = st.empty()
 
     if st.button("⏭️ Next"):
         st.cache_data.clear()
         word = next_character(list_characters)
-        record_characters(word)
+
+    record_characters(word)
+    zone_metric.metric(
+        "Number of characters done", len(st.session_state.characters_done)
+    )
 
     mp3 = word.generate_mp3(rate)
     audio_zone.audio(mp3)
@@ -85,7 +88,7 @@ def generate_report(csv_path: Path):
             header = "Date Character Pinyin Status".split()
             writer.writerow(header)
 
-        writer.writerows([now, c.chars, c.pinyin, c.status] for c in characters_done)
+        writer.writerows([now, c.chars, c.pinyin, c.status] for c in st.session_state.characters_done)
 
     st.success(f"Report updated in {csv_path}")
 
@@ -95,11 +98,11 @@ with tab_review:
     help_ = "Click to save report and restart the practice"
     if st.button("📩🧹Record and clear list of characters", help=help_):
         generate_report(Path("dictation_report.csv"))
-        characters_done.clear()
+        st.session_state.characters_done.clear()
 
-    if characters_done:
+    if st.session_state.characters_done:
         st.write(f"Caption for status: {Status.get_help()}")
-        for i, word in enumerate(characters_done):
+        for i, word in enumerate(st.session_state.characters_done):
             col_w, col_p, col_s = st.columns(3)
             col_w.subheader(word.chars)
             col_p.write(word.pinyin)

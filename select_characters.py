@@ -1,6 +1,5 @@
 """Classes and functions to select characters to practice dictation"""
 import enum
-import random
 import re
 from dataclasses import dataclass
 from random import choice
@@ -100,23 +99,43 @@ class Character:
     def status(self, value: Union[Status, str, None]):
         self._status = value if isinstance(value, Status) else Status.from_string(value)
 
+    def __hash__(self) -> int:
+        return hash(self.chars)
+
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, Character):
+            return False
+
+        return self.chars == __o.chars
+
 
 @st.cache_data
 def next_character(char_list: set[str]) -> Character:
     """Select a random character from a list"""
-    return Character(choice(list(char_list)))
+    undone_chars = char_list - {c.chars for c in st.session_state.characters_done}
+
+    if len(undone_chars) == 1:
+        st.balloons()
+
+    elif len(undone_chars) == 0:
+        st.snow()
+        undone_chars = char_list
+
+    char = choice(list(undone_chars))
+
+    return Character(char)
 
 
-def split_characters(text: Optional[str]) -> set[str]:
+def split_characters(text: Optional[str]) -> list[str]:
     """Split a string of characters"""
     if not text:
-        return set()
+        return []
 
     patt_sep = re.compile(r"\s*[,，]\s*|\s+")
-    return {c.strip() for c in patt_sep.split(text) if c.strip()}
+    return [c.strip() for c in patt_sep.split(text) if c.strip()]
 
 
-def select_characters(shuffle: bool = True) -> set[str]:
+def select_characters() -> set[str]:
     """Select list of characters"""
     selection = st.sidebar.radio(
         "Selection mode", ["From File", "From List", "Few Characters"]
@@ -140,10 +159,4 @@ def select_characters(shuffle: bool = True) -> set[str]:
     else:
         raise RuntimeError(f"Unknown selection {selection}")
 
-    characters = split_characters(list_characters)
-    if characters and shuffle:
-        characters_as_list = list(characters)
-        random.shuffle(characters_as_list)
-        characters = set(characters_as_list)
-
-    return characters
+    return set(split_characters(list_characters))
