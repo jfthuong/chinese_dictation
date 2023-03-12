@@ -92,11 +92,10 @@ def generate_report(csv_path: Path):
 
 with tab_review:
     st.header("Review")
-    if st.button("🧹Clear list of characters"):
-        for word in characters_done:
-            st.write(f" * {word.chars} - {word.status}")
-        # characters_done.clear()
+    help_ = "Click to save report and restart the practice"
+    if st.button("📩🧹Record and clear list of characters", help=help_):
         generate_report(Path("dictation_report.csv"))
+        characters_done.clear()
 
     if characters_done:
         st.write(f"Caption for status: {Status.get_help()}")
@@ -112,4 +111,4 @@ with tab_review:
                 label_visibility="collapsed",
             )
     else:
-        st.header("No characters done yet")
+        st.header("🏝️No character done yet")
