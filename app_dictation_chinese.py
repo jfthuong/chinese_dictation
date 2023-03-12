@@ -1,13 +1,13 @@
 import logging
-import re
-
 
 import streamlit as st
 
-from select_characters import Status, Characters, next_character, select_characters
-
-
+# Following line has to be before the import because the code uses streamlit
 st.set_page_config(layout="wide", page_title="默写练习", page_icon="📝")
+
+from select_characters import Character, Status, next_character, select_characters
+
+
 st.title("默写练习 - Chinese Dictation")
 
 logging.basicConfig(
@@ -24,16 +24,17 @@ if not list_characters:
     st.error("No characters selected")
     st.stop()
 
+
 if "characters_done" not in st.session_state:
     st.session_state.characters_done = []
 characters_done = st.session_state.characters_done
 
 
-def record_characters(characters: Characters):
+def record_characters(characters: Character):
     """Add characters to the list of characters done"""
     if not st.session_state.characters_done:
         st.session_state.characters_done = [characters]
-    elif characters.characters != st.session_state.characters_done[-1].characters:
+    elif characters.chars != st.session_state.characters_done[-1].chars:
         st.session_state.characters_done.append(characters)
 
 
@@ -59,7 +60,7 @@ with tab_practice:
 
     st.header("Solution")
     with st.expander("Show solution"):
-        st.subheader(f"{word.characters}")
+        st.subheader(f"{word.chars}")
         st.subheader(f"{word.pinyin}")
 
 
@@ -72,8 +73,8 @@ with tab_review:
         st.write(f"Caption for status: {Status.get_help()}")
         for i, word in enumerate(characters_done):
             col_w, col_p, col_s = st.columns(3)
-            col_w.subheader(f"{word.characters}")
-            col_p.write(f"{word.pinyin}")
+            col_w.subheader(word.chars)
+            col_p.write(word.pinyin)
             status = col_s.radio(
                 "status",
                 Status.list_values(),

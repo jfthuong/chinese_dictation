@@ -1,4 +1,5 @@
 import enum
+import random
 import re
 from dataclasses import dataclass
 from itertools import chain
@@ -64,10 +65,10 @@ CHINESE_VOICE = get_chinese_voice()
 
 
 @dataclass
-class Characters:
+class Character:
     """A word with pinyin and translation"""
 
-    characters: str
+    chars: str
     status: Optional[Status] = None
 
     @st.cache_data
@@ -82,7 +83,7 @@ class Characters:
             engine._inLoop = False  # pylint: disable=protected-access
 
             # engine.stop()
-            engine.save_to_file(self.characters, str(mp3_path))
+            engine.save_to_file(self.chars, str(mp3_path))
             engine.runAndWait()
 
             return mp3_path.read_bytes()
@@ -90,13 +91,13 @@ class Characters:
     @property
     def pinyin(self) -> str:
         """Pinyin representation"""
-        return " ".join(chain.from_iterable(pinyin(self.characters)))
+        return " ".join(chain.from_iterable(pinyin(self.chars)))
 
 
 @st.cache_data
-def next_character(char_list: set[str]) -> Characters:
+def next_character(char_list: set[str]) -> Character:
     """Select a random character from a list"""
-    return Characters(choice(list(char_list)))
+    return Character(choice(list(char_list)))
 
 
 def split_characters(text: Optional[str]) -> set[str]:
@@ -108,29 +109,35 @@ def split_characters(text: Optional[str]) -> set[str]:
     return {c.strip() for c in patt_sep.split(text) if c.strip()}
 
 
-def select_characters() -> set[str]:
+def select_characters(shuffle:bool=True) -> set[str]:
     """Select list of characters"""
     selection = st.sidebar.radio(
         "Selection mode", ["From File", "From List", "Few Characters"]
     )
     list_characters = ""
+    help_ = "Separate characters with space, comma or newline"
 
     if selection == "From File":
-        uploaded_file = st.sidebar.file_uploader("File", type=["txt"])
+        uploaded_file = st.sidebar.file_uploader("File", type=["txt"], help=help_)
         if uploaded_file:
             list_characters = uploaded_file.read().decode("utf-8")
 
     elif selection == "From List":
         list_characters = st.sidebar.text_area(
-            "Characters",
-            "默写 联系",
-            help="Separate characters with space, comma or newline",
+            "Characters", "默写 联系", height=300, help=help_
         )
 
     elif selection == "Few Characters":
-        list_characters = st.sidebar.text_input("Character", "")
+        list_characters = st.sidebar.text_input("Character", "", help=help_)
 
     else:
         raise RuntimeError(f"Unknown selection {selection}")
 
-    return split_characters(list_characters)
+
+    characters = split_characters(list_characters)
+    if characters and shuffle:
+        characters_as_list = list(characters)
+        random.shuffle(characters_as_list)
+        characters = set(characters_as_list)
+
+    return characters
