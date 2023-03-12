@@ -1,3 +1,5 @@
-/.mypy_cache
-/mp3
-/Text-and-Speech.ipynb
+.mypy_cache
+mp3
+Text-and-Speech.ipynb
+*.pyc
+*.pyo
