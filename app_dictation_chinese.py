@@ -3,14 +3,16 @@ import logging
 import re
 from dataclasses import dataclass
 from itertools import chain
-from pathlib import Path
 from random import choice
 from typing import Optional
+
 
 import pyttsx3
 import streamlit as st
 from pyttsx3.voice import Voice
 from pypinyin import pinyin
+
+from temp_filename import temporary_filename
 
 st.set_page_config(layout="wide", page_title="默写练习", page_icon="📝")
 st.title("默写练习 - Chinese Dictation")
@@ -46,6 +48,11 @@ class Status(enum.Enum):
         """List all values"""
         return [s.value for s in cls]
 
+    @classmethod
+    def get_help(cls) -> str:
+        """Get a help message"""
+        return ", ".join(f"{s.value}: {s.name}" for s in cls)
+
 
 @dataclass
 class Word:
@@ -55,21 +62,21 @@ class Word:
     status: Optional[Status] = None
 
     @st.cache_data
-    def generate_mp3(self, voice_rate: int) -> str:
+    def generate_mp3(self, voice_rate: int) -> bytes:
         """Generate a MP3 for Chinese Characters"""
-        mp3_path = MP3_DIR / "dictation.mp3"
+        with temporary_filename(suffix=".mp3") as mp3_path:
+            engine = pyttsx3.init()
+            engine.setProperty("voice", CHINESE_VOICE.id)
+            engine.setProperty("rate", voice_rate)
 
-        engine = pyttsx3.init()
-        engine.setProperty("voice", CHINESE_VOICE.id)
-        engine.setProperty("rate", voice_rate)
+            # to prevent "already in loop"
+            engine._inLoop = False  # pylint: disable=protected-access
 
-        # to prevent "already in loop"
-        engine._inLoop = False  # pylint: disable=protected-access
+            # engine.stop()
+            engine.save_to_file(self.characters, str(mp3_path))
+            engine.runAndWait()
 
-        engine.save_to_file(self.characters, str(mp3_path))
-        engine.runAndWait()
-
-        return str(mp3_path)
+            return mp3_path.read_bytes()
 
     @property
     def pinyin(self) -> str:
@@ -92,9 +99,6 @@ def get_chinese_voice() -> Voice:
 
 
 CHINESE_VOICE = get_chinese_voice()
-
-MP3_DIR = Path("mp3")
-MP3_DIR.mkdir(exist_ok=True)
 
 
 @st.cache_data
@@ -157,16 +161,21 @@ with tab_practice:
 
 with tab_review:
     st.header("Review")
-    if st.button("Reset"):
+    if st.button("🧹Clear list of characters"):
         characters_done.clear()
 
     if characters_done:
+        st.write(f"Caption for status: {Status.get_help()}")
         for i, word in enumerate(characters_done):
             col_w, col_p, col_s = st.columns(3)
-            col_w.write(f"{word.characters}")
+            col_w.subheader(f"{word.characters}")
             col_p.write(f"{word.pinyin}")
             status = col_s.radio(
-                "", Status.list_values(), key=f"check_{i}", horizontal=True
+                "status",
+                Status.list_values(),
+                key=f"check_{i}",
+                horizontal=True,
+                label_visibility="collapsed",
             )
             word.status = Status.from_string(status)
     else:
