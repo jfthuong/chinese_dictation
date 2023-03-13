@@ -2,11 +2,13 @@
 import enum
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from random import choice
 from typing import Optional, Union
 
 import pyttsx3
 import streamlit as st
+from pydub.audio_segment import AudioSegment
 from pypinyin import Style, lazy_pinyin
 from pyttsx3.voice import Voice
 
@@ -68,22 +70,32 @@ class Character:
     chars: str
     _status: Status = Status.UNKNOWN
 
+    def _generate_sound(self, voice_rate: int, path: Path):
+        """Generate a sound file for Chinese Characters"""
+        engine = pyttsx3.init()
+        engine.setProperty("voice", CHINESE_VOICE.id)
+        engine.setProperty("rate", voice_rate)
+
+        # to prevent "already in loop"
+        engine._inLoop = False  # pylint: disable=protected-access
+
+        # engine.stop()
+        engine.save_to_file(self.chars, str(path))
+        engine.runAndWait()
+
     @st.cache_data
     def generate_mp3(self, voice_rate: int) -> bytes:
         """Generate a MP3 for Chinese Characters"""
         with temporary_filename(suffix=".mp3") as mp3_path:
-            engine = pyttsx3.init()
-            engine.setProperty("voice", CHINESE_VOICE.id)
-            engine.setProperty("rate", voice_rate)
-
-            # to prevent "already in loop"
-            engine._inLoop = False  # pylint: disable=protected-access
-
-            # engine.stop()
-            engine.save_to_file(self.chars, str(mp3_path))
-            engine.runAndWait()
-
+            self._generate_sound(voice_rate, mp3_path)
             return mp3_path.read_bytes()
+
+    @st.cache_data
+    def generate_audio_segment(self, voice_rate: int) -> AudioSegment:
+        """Generate an audio file for Chinese Characters"""
+        with temporary_filename(suffix=".wav") as wav_path:
+            self._generate_sound(voice_rate, wav_path)
+            return AudioSegment.from_wav(wav_path)
 
     @property
     def pinyin(self) -> str:
@@ -160,3 +172,31 @@ def select_characters() -> set[str]:
         raise RuntimeError(f"Unknown selection {selection}")
 
     return set(split_characters(list_characters))
+
+
+def generate_dictation(
+    characters: list[Character], voice_rate: int, repetition=2, silence=1_000
+) -> bytes:
+    """Generate dictation from a list of characters
+
+    Args:
+        characters: List of characters
+        voice_rate: Voice rate
+        repetition: Number of repetition. Defaults to 2.
+        silence: Silence between repetitions in ms. Defaults to 1_000.
+    """
+    if not characters:
+        return b""
+
+    silence_segment = AudioSegment.silent(duration=silence)
+
+    audio = AudioSegment.empty()
+    for char in characters:
+        for _ in range(repetition):
+            audio += char.generate_audio_segment(voice_rate)
+            audio += silence_segment
+        audio += silence_segment * len(char.chars)
+
+    with temporary_filename(suffix=".mp3") as mp3_path:
+        audio.export(mp3_path, format="mp3")
+        return mp3_path.read_bytes()

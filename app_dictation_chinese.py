@@ -4,13 +4,20 @@ from collections import defaultdict
 from datetime import datetime
 import logging
 from pathlib import Path
+from random import shuffle
 
 import streamlit as st
 
 # Following line has to be before the import because the code uses streamlit
 st.set_page_config(layout="wide", page_title="默写练习", page_icon="📝")
 
-from select_characters import Character, Status, next_character, select_characters
+from select_characters import (  # pylint: disable=wrong-import-position
+    Character,
+    Status,
+    next_character,
+    select_characters,
+    generate_dictation,
+)
 
 
 st.title("默写练习 - Chinese Dictation")
@@ -23,11 +30,24 @@ logging.basicConfig(
 ORIGINAL_RATE = 100
 
 st.sidebar.header("Settings")
+RATE = st.sidebar.slider("Speed (words per minute)", 50, 200, ORIGINAL_RATE)
+SILENCE = st.sidebar.slider("Silence (ms)", 500, 2500, 1000)
+space_nb_chars = st.sidebar.empty()
 
+st.sidebar.markdown("---")
+
+st.sidebar.header("Selection")
 list_characters = select_characters()
 if not list_characters:
     st.error("No characters selected")
     st.stop()
+
+NB_CHARACTERS = space_nb_chars.slider(
+    "Number of characters (for full dictation)",
+    1,
+    len(list_characters),
+    min(10, len(list_characters)),
+)
 
 
 if "characters_done" not in st.session_state:
@@ -43,33 +63,69 @@ def record_characters(char: Character):
         st.session_state.characters_done.append(char)
 
 
+ZONE_NB_DONE = st.empty()
+if not st.session_state.get("characters_done"):
+    ZONE_NB_DONE.metric("Number of characters done", 0)
+
+
+def update_nb_done():
+    """Update the number of characters done"""
+    if "characters_done" in st.session_state:
+        new_nb = len(st.session_state.characters_done)
+
+        if "old_nb" in st.session_state:
+            delta = new_nb - st.session_state.old_nb
+        else:
+            delta = None
+
+        st.session_state.old_nb = new_nb
+
+        ZONE_NB_DONE.metric("Number of characters done", new_nb, delta=delta)
+
+
 tab_practice, tab_review, tab_report = st.tabs(["Practice", "Review", "Report"])
 
 with tab_practice:
-    st.header("Dictation")
-    zone_metric = st.empty()
+    st.header("Dictation All at Once")
 
-    rate = st.slider("Speed (words per minute)", 50, 200, ORIGINAL_RATE)
-    word = next_character(list_characters)
+    if st.button("🧙‍♂️ Generate Dictation"):
+        with st.spinner("Generating dictation"):
+            characters = list(list_characters)
+            shuffle(characters)
+            characters = characters[:NB_CHARACTERS]
+            characters_obj = [Character(c) for c in characters]
+
+            audio_bytes = generate_dictation(characters_obj, RATE)
+            st.audio(audio_bytes)
+
+        with st.expander("Show characters"):
+            st.write("\n".join(f"* {c.chars}: {c.pinyin}" for c in characters_obj))
+
+        for c in characters_obj:
+            record_characters(c)
+        update_nb_done()
+
+    st.header("Dictation One by One")
 
     audio_zone = st.empty()
 
-    if st.button("⏭️ Next"):
+    if st.button("⏭️ Next Character"):
         st.cache_data.clear()
         word = next_character(list_characters)
+        record_characters(word)
+        update_nb_done()
 
-    record_characters(word)
-    zone_metric.metric(
-        "Number of characters done", len(st.session_state.characters_done)
-    )
+    else:
+        word = None
 
-    mp3 = word.generate_mp3(rate)
-    audio_zone.audio(mp3)
+    if word:
+        mp3 = word.generate_mp3(RATE)
+        audio_zone.audio(mp3)
 
-    st.header("Solution")
-    with st.expander("Show solution"):
-        st.subheader(f"{word.chars}")
-        st.subheader(f"{word.pinyin}")
+        with st.expander("Show current character"):
+            st.subheader(f"{word.chars}")
+            st.subheader(f"{word.pinyin}")
+
 
 REPORT_PATH = Path("dictation_report.csv")
 
@@ -100,13 +156,15 @@ def generate_report(csv_path: Path):
 
 with tab_review:
     st.header("Review")
-    if st.button("🧹Clear list of characters without recording"):
+    if st.button("🧹🧹Clear list of characters (without recording)"):
         st.session_state.characters_done.clear()
+        update_nb_done()
 
     HELP = "Click to save report and restart the practice"
     if st.button("📩🧹Record and clear list of characters", help=HELP):
         generate_report(REPORT_PATH)
         st.session_state.characters_done.clear()
+        update_nb_done()
 
     if st.session_state.characters_done:
         st.write(f"Caption for status: {Status.get_help()}")
