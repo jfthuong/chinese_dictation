@@ -1,5 +1,6 @@
 import codecs
 import csv
+from collections import defaultdict
 from datetime import datetime
 import logging
 from pathlib import Path
@@ -42,7 +43,7 @@ def record_characters(char: Character):
         st.session_state.characters_done.append(char)
 
 
-tab_practice, tab_review = st.tabs(["Practice", "Review"])
+tab_practice, tab_review, tab_report = st.tabs(["Practice", "Review", "Report"])
 
 with tab_practice:
     st.header("Dictation")
@@ -70,6 +71,8 @@ with tab_practice:
         st.subheader(f"{word.chars}")
         st.subheader(f"{word.pinyin}")
 
+REPORT_PATH = Path("dictation_report.csv")
+
 
 def generate_report(csv_path: Path):
     """Generate a report"""
@@ -88,16 +91,21 @@ def generate_report(csv_path: Path):
             header = "Date Character Pinyin Status".split()
             writer.writerow(header)
 
-        writer.writerows([now, c.chars, c.pinyin, c.status] for c in st.session_state.characters_done)
+        writer.writerows(
+            [now, c.chars, c.pinyin, c.status] for c in st.session_state.characters_done
+        )
 
     st.success(f"Report updated in {csv_path}")
 
 
 with tab_review:
     st.header("Review")
-    help_ = "Click to save report and restart the practice"
-    if st.button("📩🧹Record and clear list of characters", help=help_):
-        generate_report(Path("dictation_report.csv"))
+    if st.button("🧹Clear list of characters without recording"):
+        st.session_state.characters_done.clear()
+
+    HELP = "Click to save report and restart the practice"
+    if st.button("📩🧹Record and clear list of characters", help=HELP):
+        generate_report(REPORT_PATH)
         st.session_state.characters_done.clear()
 
     if st.session_state.characters_done:
@@ -115,3 +123,22 @@ with tab_review:
             )
     else:
         st.header("🏝️No character done yet")
+
+
+def csv_to_dict(csv_path: Path) -> dict[str, list[str]]:
+    """Transform CSV to dict"""
+    data = defaultdict(list)
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+
+        for row in reader:
+            for key, value in row.items():
+                data[key].append(value)
+
+    data["🖋️Status"] = [getattr(Status, s).value for s in data["Status"]]
+    return data
+
+
+with tab_report:
+    st.header("Report of previous dictations")
+    st.dataframe(csv_to_dict(REPORT_PATH))
