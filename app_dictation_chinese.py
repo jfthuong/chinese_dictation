@@ -199,4 +199,7 @@ def csv_to_dict(csv_path: Path) -> dict[str, list[str]]:
 
 with tab_report:
     st.header("Report of previous dictations")
-    st.dataframe(csv_to_dict(REPORT_PATH))
+    if not REPORT_PATH.exists():
+        st.subheader("🏝️No report yet")
+    else:
+        st.dataframe(csv_to_dict(REPORT_PATH))
