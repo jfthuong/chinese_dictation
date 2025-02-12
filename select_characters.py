@@ -159,6 +159,8 @@ def select_characters() -> set[str]:
         uploaded_file = st.sidebar.file_uploader("File", type=["txt"], help=help_)
         if uploaded_file:
             list_characters = uploaded_file.read().decode("utf-8")
+            # Remove commented lines (starting with #)
+            list_characters = re.sub(r"^\s*#.*$", "", list_characters, flags=re.MULTILINE)
 
     elif selection == "From List":
         list_characters = st.sidebar.text_area(
